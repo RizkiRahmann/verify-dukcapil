@@ -1,0 +1,27 @@
+# ===== docker-compose-dev.yml (Development) =====
+---
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: dukcapil-postgres-dev
+    environment:
+      POSTGRES_DB: dukcapil_ktp
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./create_dukcapil_database.sql:/docker-entrypoint-initdb.d/01-init.sql
+    networks:
+      - dukcapil-dev-network
+
+volumes:
+  postgres_dev_data:
+    driver: local
+
+networks:
+  dukcapil-dev-network:
+    driver: bridge
