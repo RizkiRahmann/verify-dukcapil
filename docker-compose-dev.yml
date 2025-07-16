@@ -1,5 +1,3 @@
-# ===== docker-compose-dev.yml (Development) =====
----
 version: '3.8'
 
 services:
