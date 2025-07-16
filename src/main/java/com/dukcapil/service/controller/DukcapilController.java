@@ -1,9 +1,7 @@
 package com.dukcapil.service.controller;
 
 import com.dukcapil.service.dto.NikVerificationRequest;
-import com.dukcapil.service.dto.NikCheckRequest;
 import com.dukcapil.service.dto.KtpDataResponse;
-import com.dukcapil.service.dto.KtpStatsResponse;
 import com.dukcapil.service.service.DukcapilService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,7 +10,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 import java.util.HashMap;
-import java.util.List;
 
 @RestController
 @RequestMapping("/dukcapil")
@@ -23,34 +20,17 @@ public class DukcapilController {
     private DukcapilService dukcapilService;
     
     /**
-     * ROOT endpoint untuk testing
-     */
-    @GetMapping("/")
-    public ResponseEntity<?> root() {
-        return ResponseEntity.ok(Map.of(
-            "service", "Dukcapil KTP Verification Service",
-            "version", "1.0.0",
-            "status", "Running",
-            "timestamp", System.currentTimeMillis(),
-            "endpoints", Map.of(
-                "health", "GET /dukcapil/health",
-                "verify", "POST /dukcapil/verify-nik",
-                "docs", "GET /dukcapil/docs"
-            )
-        ));
-    }
-    
-    /**
-     * ENDPOINT UTAMA - Verifikasi NIK dengan nama lengkap
+     * ENDPOINT UTAMA - Verifikasi NIK dengan nama lengkap dan tanggal lahir
      */
     @PostMapping("/verify-nik")
     public ResponseEntity<?> verifyNik(@Valid @RequestBody NikVerificationRequest request) {
         try {
-            System.out.println("📥 Received NIK verification request: " + request);
+            System.out.println("📥 Received enhanced NIK verification request: " + request);
             
-            KtpDataResponse response = dukcapilService.verifyNikAndName(
+            KtpDataResponse response = dukcapilService.verifyNikNameAndBirthDate(
                 request.getNik(), 
-                request.getNamaLengkap()
+                request.getNamaLengkap(),
+                request.getTanggalLahir()
             );
             
             if (response.isValid()) {
@@ -71,7 +51,7 @@ public class DukcapilController {
             }
             
         } catch (Exception e) {
-            System.err.println("💥 Error in verifyNik endpoint: " + e.getMessage());
+            System.err.println("💥 Error in enhanced verifyNik endpoint: " + e.getMessage());
             e.printStackTrace();
             
             return ResponseEntity.badRequest().body(Map.of(
@@ -84,8 +64,76 @@ public class DukcapilController {
     }
     
     /**
-     * Check NIK existence tanpa validasi nama
+     * ENDPOINT LEGACY - Verifikasi NIK dengan nama saja (untuk backward compatibility)
      */
+    @PostMapping("/verify-nik-basic")
+    public ResponseEntity<?> verifyNikBasic(@RequestBody Map<String, String> request) {
+        try {
+            String nik = request.get("nik");
+            String namaLengkap = request.get("namaLengkap");
+            
+            if (nik == null || nik.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "valid", false,
+                    "message", "NIK wajib diisi",
+                    "service", "Dukcapil Service"
+                ));
+            }
+            
+            if (namaLengkap == null || namaLengkap.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "valid", false,
+                    "message", "Nama lengkap wajib diisi",
+                    "service", "Dukcapil Service"
+                ));
+            }
+            
+            KtpDataResponse response = dukcapilService.verifyNikAndName(nik, namaLengkap);
+            
+            if (response.isValid()) {
+                return ResponseEntity.ok(Map.of(
+                    "valid", true,
+                    "message", response.getMessage(),
+                    "data", response.getData() != null ? response.getData() : Map.of(),
+                    "timestamp", response.getTimestamp(),
+                    "service", "Dukcapil Service"
+                ));
+            } else {
+                return ResponseEntity.ok(Map.of(
+                    "valid", false,
+                    "message", response.getMessage(),
+                    "timestamp", response.getTimestamp(),
+                    "service", "Dukcapil Service"
+                ));
+            }
+            
+        } catch (Exception e) {
+            System.err.println("Error in basic verification: " + e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of(
+                "valid", false,
+                "message", "Terjadi kesalahan: " + e.getMessage(),
+                "service", "Dukcapil Service"
+            ));
+        }
+    }
+    
+    // Existing endpoints tetap sama...
+    @GetMapping("/")
+    public ResponseEntity<?> root() {
+        return ResponseEntity.ok(Map.of(
+            "service", "Dukcapil KTP Verification Service",
+            "version", "1.0.0",
+            "status", "Running",
+            "timestamp", System.currentTimeMillis(),
+            "endpoints", Map.of(
+                "health", "GET /dukcapil/health",
+                "verifyEnhanced", "POST /dukcapil/verify-nik",
+                "verifyBasic", "POST /dukcapil/verify-nik-basic",
+                "docs", "GET /dukcapil/docs"
+            )
+        ));
+    }
+    
     @PostMapping("/check-nik")
     public ResponseEntity<?> checkNik(@RequestBody Map<String, String> request) {
         try {
@@ -127,69 +175,6 @@ public class DukcapilController {
         }
     }
     
-    /**
-     * Get KTP data by NIK (untuk admin/debugging)
-     */
-    @GetMapping("/ktp-data/{nik}")
-    public ResponseEntity<?> getKtpData(@PathVariable String nik) {
-        try {
-            if (nik.length() != 16 || !nik.matches("^[0-9]{16}$")) {
-                return ResponseEntity.badRequest().body(Map.of(
-                    "found", false,
-                    "message", "Format NIK tidak valid. NIK harus 16 digit angka.",
-                    "service", "Dukcapil Service"
-                ));
-            }
-            
-            var ktpData = dukcapilService.getKtpDataByNik(nik);
-            
-            if (ktpData.isPresent()) {
-                return ResponseEntity.ok(Map.of(
-                    "found", true,
-                    "data", ktpData.get(),
-                    "message", "Data KTP ditemukan",
-                    "service", "Dukcapil Service",
-                    "timestamp", java.time.Instant.now().toString()
-                ));
-            } else {
-                return ResponseEntity.ok(Map.of(
-                    "found", false,
-                    "message", "Data KTP tidak ditemukan untuk NIK: " + nik,
-                    "service", "Dukcapil Service",
-                    "timestamp", java.time.Instant.now().toString()
-                ));
-            }
-            
-        } catch (Exception e) {
-            System.err.println("Error getting KTP data: " + e.getMessage());
-            return ResponseEntity.badRequest().body(Map.of(
-                "found", false,
-                "message", "Terjadi kesalahan: " + e.getMessage(),
-                "service", "Dukcapil Service"
-            ));
-        }
-    }
-    
-    /**
-     * Get simple statistics untuk monitoring
-     */
-    @GetMapping("/stats")
-    public ResponseEntity<?> getStats() {
-        try {
-            Map<String, Object> stats = dukcapilService.getSimpleStats();
-            return ResponseEntity.ok(stats);
-        } catch (Exception e) {
-            System.err.println("Error getting stats: " + e.getMessage());
-            return ResponseEntity.badRequest().body(Map.of(
-                "error", "Terjadi kesalahan saat mengambil statistik: " + e.getMessage(),
-                "service", "Dukcapil Service"
-            ));
-        }
-    }
-    
-    /**
-     * Health check endpoint untuk monitoring
-     */
     @GetMapping("/health")
     public ResponseEntity<?> healthCheck() {
         try {
@@ -205,10 +190,9 @@ public class DukcapilController {
                 "totalRecords", totalRecords,
                 "endpoints", Map.of(
                     "root", "GET /dukcapil/",
-                    "verifyNik", "POST /dukcapil/verify-nik",
+                    "verifyNikEnhanced", "POST /dukcapil/verify-nik",
+                    "verifyNikBasic", "POST /dukcapil/verify-nik-basic",
                     "checkNik", "POST /dukcapil/check-nik",
-                    "getKtpData", "GET /dukcapil/ktp-data/{nik}",
-                    "stats", "GET /dukcapil/stats",
                     "health", "GET /dukcapil/health"
                 ),
                 "timestamp", java.time.Instant.now().toString(),
@@ -224,46 +208,6 @@ public class DukcapilController {
         }
     }
     
-    /**
-     * Get API documentation
-     */
-    @GetMapping("/docs")
-    public ResponseEntity<?> getApiDocs() {
-        return ResponseEntity.ok(Map.of(
-            "service", "Dukcapil KTP Verification Service",
-            "version", "1.0.0",
-            "description", "Service untuk verifikasi data KTP Dukcapil",
-            "baseUrl", "http://localhost:8081/api/dukcapil",
-            "endpoints", Map.of(
-                "POST /dukcapil/verify-nik", Map.of(
-                    "description", "Verifikasi NIK dan nama lengkap",
-                    "request", Map.of(
-                        "nik", "string (16 digit)",
-                        "namaLengkap", "string"
-                    ),
-                    "response", Map.of(
-                        "valid", "boolean",
-                        "message", "string",
-                        "data", "object (jika valid)"
-                    )
-                ),
-                "POST /dukcapil/check-nik", Map.of(
-                    "description", "Check keberadaan NIK",
-                    "request", Map.of("nik", "string (16 digit)"),
-                    "response", Map.of("exists", "boolean", "message", "string")
-                ),
-                "GET /dukcapil/health", Map.of(
-                    "description", "Health check service",
-                    "response", Map.of("status", "string", "service", "string")
-                )
-            ),
-            "timestamp", java.time.Instant.now().toString()
-        ));
-    }
-    
-    /**
-     * Ping endpoint untuk quick check
-     */
     @GetMapping("/ping")
     public ResponseEntity<?> ping() {
         return ResponseEntity.ok(Map.of(

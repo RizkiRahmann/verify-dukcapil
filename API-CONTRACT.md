@@ -16,25 +16,27 @@
 ## Endpoints
 
 ### 1. **POST** `/verify-nik` ⭐ **MAIN ENDPOINT**
-Verifikasi NIK dengan nama lengkap
+Verifikasi NIK dengan nama lengkap dan tanggal lahir (Enhanced)
 
 #### Request Body
 ```json
 {
   "nik": "3175031234567890",
-  "namaLengkap": "John Doe"
+  "namaLengkap": "John Doe",
+  "tanggalLahir": "1990-05-15"
 }
 ```
 
 #### Validation Rules
 - `nik`: Required, exactly 16 digits, numeric only
 - `namaLengkap`: Required, 2-100 characters
+- `tanggalLahir`: Required, format YYYY-MM-DD, tidak boleh masa depan
 
 #### Success Response (200)
 ```json
 {
   "valid": true,
-  "message": "Data NIK dan nama valid sesuai database Dukcapil",
+  "message": "Data NIK, nama, dan tanggal lahir valid sesuai database Dukcapil",
   "data": {
     "nik": "3175031234567890",
     "namaLengkap": "John Doe",
@@ -52,11 +54,36 @@ Verifikasi NIK dengan nama lengkap
 }
 ```
 
-#### Failed Response (200)
+#### Detailed Error Messages
 ```json
+// NIK tidak terdaftar
 {
   "valid": false,
   "message": "NIK tidak terdaftar di database Dukcapil",
+  "timestamp": "2025-07-16T10:30:00Z",
+  "service": "Dukcapil Service"
+}
+
+// NIK dan nama cocok, tanggal lahir tidak
+{
+  "valid": false,
+  "message": "NIK dan nama sesuai, namun tanggal lahir tidak cocok. Tanggal lahir di database: 1990-05-16",
+  "timestamp": "2025-07-16T10:30:00Z",
+  "service": "Dukcapil Service"
+}
+
+// NIK dan tanggal lahir cocok, nama tidak
+{
+  "valid": false,
+  "message": "NIK dan tanggal lahir sesuai, namun nama tidak cocok. Nama di database: Jane Smith",
+  "timestamp": "2025-07-16T10:30:00Z",
+  "service": "Dukcapil Service"
+}
+
+// Semua data tidak cocok
+{
+  "valid": false,
+  "message": "NIK terdaftar namun nama dan tanggal lahir tidak sesuai dengan data Dukcapil",
   "timestamp": "2025-07-16T10:30:00Z",
   "service": "Dukcapil Service"
 }
@@ -74,7 +101,64 @@ Verifikasi NIK dengan nama lengkap
 
 ---
 
-### 2. **POST** `/check-nik`
+### 2. **POST** `/verify-nik-basic` 
+Verifikasi NIK dengan nama lengkap saja (Legacy/Backward Compatibility)
+
+#### Request Body
+```json
+{
+  "nik": "3175031234567890",
+  "namaLengkap": "John Doe"
+}
+```
+
+#### Success Response (200)
+```json
+{
+  "valid": true,
+  "message": "Data NIK dan nama valid sesuai database Dukcapil",
+  "data": {
+    "nik": "3175031234567890",
+    "namaLengkap": "John Doe",
+    "tempatLahir": "Jakarta",
+    "tanggalLahir": "1990-05-15",
+    "jenisKelamin": "Laki-laki"
+  },
+  "timestamp": "2025-07-16T10:30:00Z",
+  "service": "Dukcapil Service"
+}
+```
+
+---
+
+### 3. **POST** `/check-nik`
+
+---
+
+### 3. **POST** `/check-nik`
+Check keberadaan NIK tanpa validasi nama dan tanggal lahir
+
+#### Request Body
+```json
+{
+  "nik": "3175031234567890"
+}
+```
+
+#### Success Response (200)
+```json
+{
+  "exists": true,
+  "nik": "3175031234567890",
+  "message": "NIK terdaftar di database Dukcapil",
+  "service": "Dukcapil Service",
+  "timestamp": "2025-07-16T10:30:00Z"
+}
+```
+
+---
+
+### 4. **GET** `/health`
 Check keberadaan NIK tanpa validasi nama
 
 #### Request Body
@@ -213,10 +297,11 @@ Quick health check
 
 ### Java Client Example
 ```java
-// Verifikasi NIK
+// Enhanced Verification dengan tanggal lahir
 NikVerificationRequest request = new NikVerificationRequest(
     "3175031234567890", 
-    "John Doe"
+    "John Doe",
+    LocalDate.of(1990, 5, 15)
 );
 
 RestTemplate restTemplate = new RestTemplate();
@@ -227,16 +312,44 @@ ResponseEntity<Map> response = restTemplate.postForEntity(
 );
 
 boolean isValid = (Boolean) response.getBody().get("valid");
+
+// Basic Verification (Legacy)
+Map<String, String> basicRequest = Map.of(
+    "nik", "3175031234567890",
+    "namaLengkap", "John Doe"
+);
+
+ResponseEntity<Map> basicResponse = restTemplate.postForEntity(
+    "http://localhost:8081/api/dukcapil/verify-nik-basic",
+    basicRequest,
+    Map.class
+);
 ```
 
 ### cURL Example
 ```bash
-# Verifikasi NIK
+# Enhanced Verification dengan tanggal lahir
 curl -X POST http://localhost:8081/api/dukcapil/verify-nik \
   -H "Content-Type: application/json" \
   -d '{
     "nik": "3175031234567890",
+    "namaLengkap": "John Doe",
+    "tanggalLahir": "1990-05-15"
+  }'
+
+# Basic Verification (Legacy)
+curl -X POST http://localhost:8081/api/dukcapil/verify-nik-basic \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nik": "3175031234567890",
     "namaLengkap": "John Doe"
+  }'
+
+# Check NIK existence
+curl -X POST http://localhost:8081/api/dukcapil/check-nik \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nik": "3175031234567890"
   }'
 
 # Health check
@@ -266,6 +379,23 @@ curl http://localhost:8081/api/dukcapil/health
 
 ## Data Models
 
+### Enhanced NIK Verification Request
+```json
+{
+  "nik": "string (16 digits)",
+  "namaLengkap": "string (2-100 chars)",
+  "tanggalLahir": "string (YYYY-MM-DD format)"
+}
+```
+
+### Basic NIK Verification Request (Legacy)
+```json
+{
+  "nik": "string (16 digits)", 
+  "namaLengkap": "string (2-100 chars)"
+}
+```
+
 ### NIK Validation Rules
 - Length: Exactly 16 characters
 - Format: Numeric only (0-9)
@@ -277,6 +407,11 @@ curl http://localhost:8081/api/dukcapil/health
 - Length: 2-100 characters
 - Case insensitive matching
 - Trimmed whitespace
+
+### Birth Date Validation Rules
+- Format: YYYY-MM-DD (ISO 8601)
+- Cannot be in the future
+- Must be a valid date
 
 ---
 

@@ -1,8 +1,11 @@
 package com.dukcapil.service.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import com.fasterxml.jackson.annotation.JsonFormat;
+import java.time.LocalDate;
 
 public class NikVerificationRequest {
     
@@ -15,12 +18,17 @@ public class NikVerificationRequest {
     @Size(min = 2, max = 100, message = "Nama lengkap antara 2-100 karakter")
     private String namaLengkap;
     
+    @NotNull(message = "Tanggal lahir wajib diisi")
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
+    private LocalDate tanggalLahir;
+    
     // Constructors
     public NikVerificationRequest() {}
     
-    public NikVerificationRequest(String nik, String namaLengkap) {
+    public NikVerificationRequest(String nik, String namaLengkap, LocalDate tanggalLahir) {
         this.nik = nik;
         this.namaLengkap = namaLengkap;
+        this.tanggalLahir = tanggalLahir;
     }
     
     // Getters and Setters
@@ -30,11 +38,15 @@ public class NikVerificationRequest {
     public String getNamaLengkap() { return namaLengkap; }
     public void setNamaLengkap(String namaLengkap) { this.namaLengkap = namaLengkap; }
     
+    public LocalDate getTanggalLahir() { return tanggalLahir; }
+    public void setTanggalLahir(LocalDate tanggalLahir) { this.tanggalLahir = tanggalLahir; }
+    
     @Override
     public String toString() {
         return "NikVerificationRequest{" +
                 "nik='" + nik + '\'' +
                 ", namaLengkap='" + namaLengkap + '\'' +
+                ", tanggalLahir=" + tanggalLahir +
                 '}';
     }
 }
