@@ -1,6 +1,6 @@
 -- ===== FIX DATABASE SCHEMA ISSUES =====
 -- File: database_fix.sql
--- Run: psql -U postgres -d dukcapil_ktp -f database_fix.sql
+-- Run: psql -U postgres -d dukcapil_ktp -f sql/database_fix.sql
 
 -- 1. Drop problematic view first
 DROP VIEW IF EXISTS ktp_summary CASCADE;

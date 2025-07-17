@@ -37,7 +37,7 @@ sudo rpm -i cloudflared.rpm
 ### Start Cloudflare Tunnel
 ```bash
 # Terminal 2: Start tunnel (temporary)
-cloudflared tunnel --url http://localhost:8080
+cloudflared tunnel --url http://localhost:8081
 ```
 
 **Output akan seperti ini:**
