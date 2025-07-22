@@ -1,57 +1,35 @@
-# ===== Dockerfile =====
-# File: Dockerfile
-
-# Use Eclipse Temurin JDK 21
-FROM eclipse-temurin:21-jdk-alpine AS builder
-
-# Set working directory
+# Multi-stage build untuk Dukcapil Dummy
+# Stage 1: Build stage  
+FROM maven:3.9.8-eclipse-temurin-21 AS build
 WORKDIR /app
 
-# Copy Maven files
+# Copy pom.xml dan download dependencies
 COPY pom.xml .
-COPY .mvn .mvn
 COPY mvnw .
-
-# Make mvnw executable
-RUN chmod +x mvnw
-
-# Download dependencies
-RUN ./mvnw dependency:go-offline -B
+COPY .mvn .mvn
+RUN ./mvnw dependency:go-offline
 
 # Copy source code
 COPY src ./src
 
-# Build application
+# Build aplikasi
 RUN ./mvnw clean package -DskipTests
 
-# ===== Runtime Stage =====
-FROM eclipse-temurin:21-jre-alpine
-
-# Install packages for better monitoring
-RUN apk add --no-cache curl jq
-
-# Create app user
-RUN addgroup -g 1001 -S appgroup && \
-    adduser -u 1001 -S appuser -G appgroup
-
-# Set working directory
+# Stage 2: Runtime stage
+FROM eclipse-temurin:21-jre
 WORKDIR /app
 
-# Copy jar file
-COPY --from=builder /app/target/dukcapil-service-*.jar app.jar
+# Copy JAR dari build stage
+COPY --from=build /app/target/*.jar app.jar
 
-# Create logs directory
-RUN mkdir -p /app/logs && chown -R appuser:appgroup /app
-
-# Switch to app user
-USER appuser
+# Environment variables (Spring Boot properties mapping)
+ENV SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-db:5432/dukcapil_ktp
+ENV SPRING_DATASOURCE_USERNAME=postgres
+ENV SPRING_DATASOURCE_PASSWORD=postgres123
+ENV SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.postgresql.Driver
 
 # Expose port
 EXPOSE 8081
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8081/api/dukcapil/health || exit 1
-
-# Run application
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# Run aplikasi dengan nama JAR yang fixed
+CMD ["java", "-jar", "app.jar"]
