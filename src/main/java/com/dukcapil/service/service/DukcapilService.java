@@ -121,23 +121,21 @@ public class DukcapilService {
                     if (existing.getNamaLengkap().toLowerCase().equals(namaLengkap.trim().toLowerCase())) {
                         return new KtpDataResponse(
                             false, 
-                            "NIK dan nama sesuai, namun tanggal lahir tidak cocok. " +
-                            "Tanggal lahir di database: " + existing.getTanggalLahir()
+                            "Data tidak sesuai"
                         );
                     } 
                     // Check apakah tanggal lahir cocok tapi nama tidak
                     else if (existing.getTanggalLahir().equals(tanggalLahir)) {
                         return new KtpDataResponse(
                             false, 
-                            "NIK dan tanggal lahir sesuai, namun nama tidak cocok. " +
-                            "Nama di database: " + existing.getNamaLengkap()
+                            "Data tidak sesuai"
                         );
                     } 
                     // Keduanya tidak cocok
                     else {
                         return new KtpDataResponse(
                             false, 
-                            "NIK terdaftar namun nama dan tanggal lahir tidak sesuai dengan data Dukcapil"
+                            "Data tidak sesuai"
                         );
                     }
                 } else {
